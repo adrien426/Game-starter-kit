@@ -1,0 +1,26 @@
+name: Extract zip and publish preview
+
+on: workflow_dispatch
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract zip, commit to main, push preview branch
+        run: |
+          set -e
+          zip_file=$(ls *.zip | head -n 1)
+          echo "Extracting $zip_file"
+          unzip -o "$zip_file" -d .
+          git rm -q "$zip_file"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Extract $zip_file"
+          git push origin HEAD:main
+          git push --force origin HEAD:preview
