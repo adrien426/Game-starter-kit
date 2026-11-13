@@ -59,7 +59,7 @@ export function Player() {
   const { model, mixer, actions, bones } = useCharacterModel(P.model);
   const animator = useMemo(() => new Animator(actions), [actions]);
   const guns = useWeaponModels();
-  const s = useRef({ action: null, punchSide: 0, emote: -1, cooldown: 0, combatT: 0, reloadT: 0, deadT: 0, aimW: 0, airT: 0, lastHealth: P.maxHealth });
+  const s = useRef({ action: null, punchSide: 0, combo: 0, lastPunch: 0, kickSide: 0, guard: false, emote: -1, cooldown: 0, combatT: 0, reloadT: 0, deadT: 0, aimW: 0, airT: 0, lastHealth: P.maxHealth });
 
   // Register the player in the shared runtime + as a damage target
   useEffect(() => {
@@ -72,7 +72,7 @@ export function Player() {
       colliderHandle = handle.current.collider.handle;
       runtime.damageables.set(colliderHandle, {
         hit: (damage, _p, dir) => {
-          useGame.getState().damage(damage);
+          useGame.getState().damage(s.current.guard ? damage * 0.25 : damage);
           handle.current?.body.applyImpulse({ x: dir.x * 2, y: 1, z: dir.z * 2 }, true);
         },
       });
@@ -133,12 +133,19 @@ export function Player() {
 
       const trigger = weapon.auto ? input.held('fire') : input.pressed('fire');
       const free = !act || act.cancelable;
+      const guarding = !armed && input.held('aim') && h.isOnGround && !act;
+      st.guard = guarding;
       if (!armed && trigger && free && h.isOnGround) {
-        // alternate a jab and a jab-cross (Mixamo clips from the Drive)
-        st.punchSide ^= 1;
-        startAction(st.punchSide ? 'LeadJab' : 'JabCross', { timeScale: 1.7, hitAt: st.punchSide ? 0.28 : 0.42, damage: CONFIG.combat.punchDamage, lockMove: false, maxT: 0.75 });
+        // combo with the Drive clips: jab -> jab-cross -> fist-fight finisher
+        const now = performance.now() / 1000;
+        st.combo = now - st.lastPunch < 1.1 ? (st.combo + 1) % 3 : 0;
+        st.lastPunch = now;
+        const C = CONFIG.combat;
+        if (st.combo === 0) startAction('LeadJab', { timeScale: 1.7, hits: [0.28], damage: C.punchDamage, maxT: 0.7 });
+        else if (st.combo === 1) startAction('JabCross', { timeScale: 1.7, hits: [0.25, 0.45], damage: C.punchDamage, maxT: 0.8 });
+        else startAction('FistFightA', { timeScale: 1.8, hits: [0.35, 0.7, 1.1], damage: C.punchDamage * 1.4, maxT: 1.5, lockMove: true });
         st.combatT = 4;
-      } else if (armed && trigger && st.cooldown <= 0 && st.reloadT <= 0 && st.aimW > 0.5) {
+            } else if (armed && trigger && st.cooldown <= 0 && st.reloadT <= 0 && st.aimW > 0.5) {
         st.cooldown = 1 / weapon.fireRate;
         if (game.useAmmo(weapon.id)) {
           const gun = guns[weapon.id];
@@ -152,7 +159,9 @@ export function Player() {
         } else sfx.empty();
       }
       if (input.pressed('kick') && h.isOnGround && free) {
-        startAction('MmaKick', { timeScale: 1.5, hitAt: 0.42, damage: CONFIG.combat.kickDamage, lockMove: true, low: true });
+        st.kickSide ^= 1;
+        if (st.kickSide) startAction('MmaKick', { timeScale: 1.5, hits: [0.42], damage: CONFIG.combat.kickDamage, lockMove: true, low: true });
+        else startAction('KickToTheGroin', { timeScale: 1.8, hits: [0.55], damage: CONFIG.combat.kickDamage, lockMove: true, low: true, maxT: 1.2 });
         st.combatT = 4;
       }
       if (input.pressed('roll') && h.isOnGround && free) {
@@ -171,8 +180,10 @@ export function Player() {
     if (act) {
       act.t += dt;
       if (act.from && act.t === dt && animator.current) animator.current.time = act.from * animator.current.getClip().duration;
-      if (act.hitAt && !act.hit && act.t >= act.hitAt) {
-        act.hit = true;
+      const hits = act.hits ?? (act.hitAt ? [act.hitAt] : []);
+      if (act.hitIndex === undefined) act.hitIndex = 0;
+      if (act.hitIndex < hits.length && act.t >= hits[act.hitIndex]) {
+        act.hitIndex++;
         const origin = act.low ? chest.add(v1.set(0, -0.3, 0)) : chest;
         if (meleeHit(world, rapier, origin, forward, act.damage, h.body)) sfx.punch();
       }
@@ -244,6 +255,9 @@ export function Player() {
         } else {
           animator.play('Walk', { fade: 0.25, timeScale: THREE.MathUtils.clamp(speed / 1.6, 0.6, 1.6) });
         }
+      } else if (st.guard) {
+        const a = animator.play('LeftBlock', { once: true, fade: 0.1, timeScale: 1.5 });
+        if (a && a.time > 0.45) a.time = 0.45; // hold the guard
       } else if (armed && weapon.twoHands && faceCamera) {
         animator.play('RifleAimingIdle', { fade: 0.25 });
       } else {

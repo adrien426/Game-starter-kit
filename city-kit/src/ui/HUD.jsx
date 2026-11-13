@@ -69,8 +69,8 @@ function Controls() {
       <dt>ZQSD / WASD</dt><dd>Se déplacer / conduire</dd>
       <dt>Maj</dt><dd>Courir</dd>
       <dt>Espace</dt><dd>Sauter / frein à main</dd>
-      <dt>Clic gauche</dt><dd>Frapper / tirer</dd>
-      <dt>Clic droit</dt><dd>Viser</dd>
+      <dt>Clic gauche</dt><dd>Tirer / frapper (3 clics = enchaînement)</dd>
+      <dt>Clic droit</dt><dd>Viser (arme) / se mettre en garde (poings)</dd>
       <dt>C</dt><dd>Coup de pied</dd>
       <dt>V</dt><dd>Roulade / esquive</dd>
       <dt>B</dt><dd>Emote (salut, provoc, danse)</dd>
@@ -162,7 +162,8 @@ function TouchControls({ vehicle, armed, canEnter }) {
           <>
             <Btn id="jump" label="Saut" />
             <Btn id="fire" label={armed ? 'Tir' : 'Frapper'} />
-            {armed ? <Btn id="aim" label="Viser" /> : <Btn id="kick" label="Pied" />}
+            <Btn id="aim" label={armed ? 'Viser' : 'Garde'} />
+            {!armed && <Btn id="kick" label="Pied" />}
             <Btn id="run" label="Courir" />
             <Btn id="roll" label="Roulade" />
             {canEnter && <Btn id="enter" label="Monter" />}
