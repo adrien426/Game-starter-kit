@@ -6,6 +6,7 @@ import { CuboidCollider } from '@react-three/rapier';
 import { EcctrlVehicle, ShapeCastWheel, ThrustPropeller } from 'ecctrl/vehicle';
 import { ASSET, CONFIG, VEHICLE_SPAWNS, VEHICLE_TYPES } from '../config';
 import { Animator, useCharacterModel } from '../player/character';
+import { LAYOUT } from '../world/cityLayout';
 import { input } from '../core/input';
 import { runtime } from '../core/runtime';
 import { useGame } from '../core/store';
@@ -15,11 +16,17 @@ const v1 = new THREE.Vector3();
 const q1 = new THREE.Quaternion();
 const up = new THREE.Vector3(0, 1, 0);
 
+/** Height of the ground (sidewalk blocks are a bit higher than the road). */
+function groundHeight(x, z) {
+  const h = CONFIG.city.blockSize / 2;
+  return LAYOUT.some((b) => Math.abs(x - b.x) < h && Math.abs(z - b.z) < h) ? CONFIG.city.sidewalkHeight : 0;
+}
+
 /** All the vehicles of VEHICLE_SPAWNS. */
 export function Vehicles() {
   return VEHICLE_SPAWNS.map(([type, x, z, heading], i) => {
     const def = VEHICLE_TYPES[type];
-    const props = { key: i, id: `${type}-${i}`, type, def, position: [x, def.kind === 'heli' ? 0.4 : 0.2, z], rotation: [0, heading, 0] };
+    const props = { key: i, id: `${type}-${i}`, type, def, position: [x, groundHeight(x, z) + (def.kind === 'heli' ? 0.25 : 0.05), z], rotation: [0, heading, 0] };
     return def.kind === 'heli' ? <Helicopter {...props} /> : <WheeledVehicle {...props} />;
   });
 }
@@ -88,7 +95,8 @@ function Driver({ id, def }) {
   return <SeatedCharacter seat={def.seat} />;
 }
 function SeatedCharacter({ seat }) {
-  const { model, mixer, actions } = useCharacterModel(CONFIG.player.model);
+  const url = useGame((s) => s.playerModel);
+  const { model, mixer, actions } = useCharacterModel(url);
   const animator = useMemo(() => new Animator(actions), [actions]);
   useEffect(() => { animator.play('SeatedIdle', { fade: 0 }); }, [animator]);
   useFrame((_, dt) => mixer.update(Math.min(dt, 0.05)));
@@ -99,12 +107,13 @@ function SeatedCharacter({ seat }) {
 // the body paint is applied here, like in the GTA5 project.
 const PAINTS = ['#c0392b', '#1f4e8c', '#f1c40f', '#2c3e50', '#ecf0f1', '#16a085', '#8e44ad', '#d35400', '#111111', '#7f8c8d'];
 const ROLE_MATS = {
-  glass: new THREE.MeshPhysicalMaterial({ color: '#10161f', metalness: 0.2, roughness: 0.05, transparent: true, opacity: 0.55, envMapIntensity: 1.5 }),
+  glass: new THREE.MeshPhysicalMaterial({ color: '#10161f', metalness: 0.2, roughness: 0.05, transparent: true, opacity: 0.55, envMapIntensity: 1.5, side: THREE.DoubleSide }),
   head: new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#fff4d6', emissiveIntensity: 1.5 }),
   tail: new THREE.MeshStandardMaterial({ color: '#7a0000', emissive: '#ff1a1a', emissiveIntensity: 0.8 }),
 };
 const paintCache = {};
-const paintMat = (c) => (paintCache[c] ??= new THREE.MeshPhysicalMaterial({ color: c, metalness: 0.55, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 }));
+// DoubleSide: some car meshes have flipped faces (missing roof otherwise)
+const paintMat = (c) => (paintCache[c] ??= new THREE.MeshPhysicalMaterial({ color: c, metalness: 0.55, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08, side: THREE.DoubleSide }));
 let paintIndex = 0;
 
 /** Splits a vehicle glb in body + wheel models. */
@@ -121,6 +130,7 @@ function useVehicleParts(def) {
       o.receiveShadow = true;
       if (role === 'paint') o.material = paintMat(color);
       else if (ROLE_MATS[role]) o.material = ROLE_MATS[role];
+      else if (o.material) { o.material = o.material.clone(); o.material.side = THREE.DoubleSide; }
     });
     for (const name of ['wheel', 'wheelF', 'wheelR', 'rotor', 'tail']) {
       const node = body.getObjectByName(name);
@@ -149,6 +159,8 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
   const { body, parts, makeWheel } = useVehicleParts(def);
   const isBike = def.kind === 'bike';
   const flipT = useRef(0);
+  const parkT = useRef(-3); // let it settle on its wheels before the first sleep
+  const [awake, setAwake] = useState(true);
   const nitroFx = useRef(0);
   const flame = useRef(null);
   const modulesReady = useModulesReady();
@@ -194,10 +206,25 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
         brake: input.held('jump'),
       });
     } else {
-      h.setMovement({ forward: false, backward: false, steerLeft: false, steerRight: false, joystickL: { x: 0, y: 0 }, brake: true });
+      h.setMovement({ forward: false, backward: false, steerLeft: false, steerRight: false, joystickL: { x: 0, y: 0 }, brake: false });
     }
     const body = h.body;
     const yAxis = h.bodyYAxis;
+    // Parked: once settled, the car goes to sleep with ecctrl switched off.
+    // (ecctrl's tyre model keeps oscillating at rest: the cars shook left/right.)
+    // It wakes up as soon as someone drives it.
+    if (active) {
+      parkT.current = 0;
+      if (!awake) setAwake(true);
+    } else if (!awake && !body.isSleeping()) {
+      // pushed / hit while asleep: switch ecctrl back on so it stands on its wheels
+      setAwake(true);
+      parkT.current = -1;
+    } else if (awake) {
+      const lv = body.linvel();
+      parkT.current = Math.hypot(lv.x, lv.y, lv.z) < 1.2 ? parkT.current + dt : Math.min(parkT.current, 0);
+      if (parkT.current > 1.5) { setAwake(false); body.sleep(); }
+    }
     // ---- nitro (Shift / touch button): extra push forward, gauge refills slowly
     if (active) {
       const g = useGame.getState();
@@ -218,7 +245,7 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
     if (flame.current) { flame.current.visible = nitroFx.current > 0.05; flame.current.scale.setScalar(0.6 + nitroFx.current * (0.6 + Math.random() * 0.4)); }
     // keep motorbikes upright (ecctrl has no 2-wheel balance yet).
     // Velocity-level control (no torque): stable whatever the bike inertia.
-    if (isBike) {
+    if (isBike && awake) {
       const fwd = h.bodyZAxis;
       const roll = h.bodyXAxis.dot(up); // 0 when upright, >0 when leaning around +Z
       const av = h.currAngVel;
@@ -226,7 +253,13 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
       const target = THREE.MathUtils.clamp(-roll * 10, -4, 4);
       const next = THREE.MathUtils.lerp(rollRate, target, 1 - Math.exp(-12 * dt));
       const d = next - rollRate;
-      if (Math.abs(d) > 1e-4) body.setAngvel({ x: av.x + fwd.x * d, y: av.y + fwd.y * d, z: av.z + fwd.z * d }, false);
+      // pitch: damp the nose-up / nose-down rotation so the bike does not
+      // wheelie or flip backwards when accelerating or braking
+      const side = h.bodyXAxis;
+      const pitchRate = (av.x + fwd.x * d) * side.x + (av.y + fwd.y * d) * side.y + (av.z + fwd.z * d) * side.z;
+      const onGround = [...h.wheelsInfo.values()].some((w) => w.current.rayHit);
+      const dp = onGround ? -pitchRate * (1 - Math.exp(-10 * dt)) : 0;
+      if (Math.abs(d) > 1e-4 || Math.abs(dp) > 1e-4) body.setAngvel({ x: av.x + fwd.x * d + side.x * dp, y: av.y + fwd.y * d + side.y * dp, z: av.z + fwd.z * d + side.z * dp }, false);
       // visual lean in turns
       if (lean.current) {
         const speed = h.currLinVel.dot(fwd);
@@ -248,7 +281,7 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
 
   const [w, hgt, len] = def.size;
   return (
-    <EcctrlVehicle ref={handle} position={position} rotation={rotation} carConfig={carConfig} userData={{ type: 'vehicle', id }} linearDamping={0.05} angularDamping={0.4}>
+    <EcctrlVehicle ref={handle} enable={awake} position={position} rotation={rotation} carConfig={carConfig} userData={{ type: 'vehicle', id }} linearDamping={0.05} angularDamping={0.4}>
       {/* chassis: its bottom (chassisBottom) is lower than a fully compressed
           wheel, so a hard landing hits the chassis, never pushes the wheel
           shape into the ground (that gives NaN in ecctrl) */}
@@ -263,7 +296,7 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
           rayLength={RAY}
           springK={springK}
           dampingC={isBike ? 12 : 18}
-          driveWheel={isBike ? !wh.front : true}
+          driveWheel
           driveTorqueWeight={wh.front ? 0.8 : 1.2}
           steerWheel={wh.front}
           brakeWheel
@@ -315,8 +348,6 @@ function Helicopter({ id, type, def, position, rotation }) {
   const rotor = useRef(0);
   const modulesReady = useModulesReady();
   useRegister(id, type, def, handle, object);
-  const driven = useGame((s) => s.vehicleId === id);
-
   const droneConfig = useMemo(() => ({
     controlMode: 'VELOCITY', maxHorizSpeed: def.maxHorizSpeed, maxVertSpeed: def.maxVertSpeed,
     maxTiltAngle: 0.32, maxYawRate: 1.3, airDragFactor: 0.35,
@@ -332,13 +363,14 @@ function Helicopter({ id, type, def, position, rotation }) {
         yawRight: !st.touch && input.held('yawRight'),
         pitchForward: !st.touch && input.held('pitchForward'),
         pitchBackward: !st.touch && input.held('pitchBackward'),
-        rollLeft: input.held('rollLeft') && !input.held('left'),
-        rollRight: input.held('rollRight') && !input.held('right'),
+        rollLeft: input.held('rollLeft'),
+        rollRight: input.held('rollRight'),
         joystickL: { x: st.touch ? st.x : 0, y: 0 },
         joystickR: { x: 0, y: st.touch ? st.y : 0 },
       });
     } else {
-      h.setMovement({ throttleUp: false, throttleDown: false, yawLeft: false, yawRight: false, pitchForward: false, pitchBackward: false, rollLeft: false, rollRight: false, joystickL: { x: 0, y: 0 }, joystickR: { x: 0, y: 0 } });
+      // nobody inside: the helicopter slowly comes down and lands by itself
+      h.setMovement({ throttleUp: false, throttleDown: true, yawLeft: false, yawRight: false, pitchForward: false, pitchBackward: false, rollLeft: false, rollRight: false, joystickL: { x: 0, y: 0 }, joystickR: { x: 0, y: 0 } });
     }
     rotor.current = THREE.MathUtils.lerp(rotor.current, active ? 1 : 0, 1 - Math.exp(-0.8 * dt));
     if (parts.rotor) parts.rotor.rotation.y += rotor.current * 28 * dt;
@@ -347,7 +379,7 @@ function Helicopter({ id, type, def, position, rotation }) {
 
   const THRUST = 420;
   return (
-    <EcctrlVehicle ref={handle} enable={driven} position={position} rotation={rotation} droneConfig={droneConfig} userData={{ type: 'vehicle', id }} angularDamping={1.5}>
+    <EcctrlVehicle ref={handle} position={position} rotation={rotation} droneConfig={droneConfig} userData={{ type: 'vehicle', id }} angularDamping={1.5}>
       <CuboidCollider args={[1.15, 1.0, 2.6]} position={[0, 1.9, 0.2]} mass={40} friction={0.6} />
       <CuboidCollider args={[0.35, 0.45, 2.6]} position={[0, 2.7, -5.0]} mass={2} />
       <CuboidCollider args={[1.25, 0.12, 2.0]} position={[0, 0.12, 0]} mass={4} friction={1} />

@@ -8,6 +8,7 @@ export const useGame = create((set, get) => ({
   night: false,
   // What the player controls: null = on foot, otherwise a vehicle id
   vehicleId: null,
+  playerModel: CONFIG.player.model,
   exitPosition: null, // where to respawn the character when leaving a vehicle
   health: CONFIG.player.maxHealth,
   dead: false,

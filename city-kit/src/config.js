@@ -22,7 +22,15 @@ export const CONFIG = {
 
   // ---------- Player (ecctrl character) ----------
   player: {
-    model: 'models/characters/james.glb',
+    model: 'models/characters/adam.glb',
+    // characters the phone app "Perso" can switch to (all Mixamo, same animations)
+    characters: [
+      ['Adam', 'models/characters/adam.glb'],
+      ['James', 'models/characters/james.glb'],
+      ['Agent', 'models/characters/pnj_agent.glb'],
+      ['Victoria', 'models/characters/pnj_femme.glb'],
+      ['Soldat', 'models/characters/pnj_soldat.glb'],
+    ],
     spawn: [0, 2, 6],
     capsuleHalfHeight: 0.5,
     capsuleRadius: 0.3,
@@ -64,7 +72,7 @@ export const CONFIG = {
   npc: {
     count: 14,
     models: [
-      'models/characters/adam.glb',
+      'models/characters/james.glb',
       'models/characters/pnj_agent.glb',
       'models/characters/pnj_femme.glb',
       'models/characters/pnj_soldat.glb',
@@ -86,10 +94,11 @@ export const CONFIG = {
 };
 
 // Weapons. "fists" is always available. Add one here and it shows in the HUD.
+// length = real size in meters: the model is rescaled to it (source files have random sizes).
 export const WEAPONS = [
   { id: 'fists', name: 'Poings', model: null, damage: 25, fireRate: 2.5, auto: false, ammo: Infinity, range: 1.4 },
-  { id: 'pistol', name: 'Pistolet', model: 'models/weapons/deagle.glb', damage: 34, fireRate: 4, auto: false, ammo: 70, mag: 7, range: 120, spread: 0.004, scale: 0.75, twoHands: false },
-  { id: 'rifle', name: 'Fusil d\'assaut', model: 'models/weapons/ak.glb', damage: 22, fireRate: 10, auto: true, ammo: 300, mag: 30, range: 200, spread: 0.012, scale: 1, twoHands: true },
+  { id: 'pistol', name: 'Pistolet', model: 'models/weapons/deagle.glb', damage: 34, fireRate: 4, auto: false, ammo: 70, mag: 7, range: 120, spread: 0.004, length: 0.27, twoHands: false },
+  { id: 'rifle', name: 'Fusil d\'assaut', model: 'models/weapons/ak.glb', damage: 22, fireRate: 10, auto: true, ammo: 300, mag: 30, range: 200, spread: 0.012, length: 0.88, twoHands: true },
 ];
 
 // Vehicles. Wheel positions come from the .json files produced by the GTA5

@@ -41,8 +41,11 @@ function useWeaponModels() {
       // grip ~ 30% from the back of the gun, slightly below the center
       obj.position.set(-center.x, -center.y - size.y * 0.15, -box.min.z - size.z * 0.3);
       holder.add(obj);
-      holder.scale.setScalar(w.scale ?? 1);
-      holder.userData.length = size.z * (w.scale ?? 1);
+      // rescale to the real length (the pistol file is 3 m long!)
+      const longest = Math.max(size.x, size.y, size.z);
+      const k = (w.length ?? 0.5) / longest;
+      holder.scale.setScalar(k);
+      holder.userData.length = size.z * k;
       map[w.id] = holder;
     }
     return map;
@@ -50,13 +53,18 @@ function useWeaponModels() {
 }
 
 export function Player() {
+  const modelUrl = useGame((s) => s.playerModel);
+  return <PlayerBody key={modelUrl} modelUrl={modelUrl} />;
+}
+
+function PlayerBody({ modelUrl }) {
   const handle = useRef(null);
   const follow = useRef(null);
   const gunSlot = useRef(null);
   const { world, rapier } = useRapier();
   const { camera } = useThree();
-  const spawn = useMemo(() => useGame.getState().exitPosition ?? P.spawn, []);
-  const { model, mixer, actions, bones } = useCharacterModel(P.model);
+  const spawn = useMemo(() => useGame.getState().exitPosition ?? (runtime.player ? runtime.player.currPos.toArray() : P.spawn), []);
+  const { model, mixer, actions, bones } = useCharacterModel(modelUrl);
   const animator = useMemo(() => new Animator(actions), [actions]);
   const guns = useWeaponModels();
   const s = useRef({ action: null, punchSide: 0, combo: 0, lastPunch: 0, kickSide: 0, guard: false, emote: -1, cooldown: 0, combatT: 0, reloadT: 0, deadT: 0, aimW: 0, airT: 0, lastHealth: P.maxHealth });

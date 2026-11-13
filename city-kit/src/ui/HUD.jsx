@@ -241,6 +241,14 @@ function Phone() {
     { label: 'Voiture', icon: '🚗', run: () => bring('car') },
     { label: 'Moto', icon: '🏍️', run: () => bring('bike') },
     { label: 'Hélico', icon: '🚁', run: () => bring('heli') },
+    { label: 'Perso', icon: '🧍', run: () => {
+      const list = CONFIG.player.characters;
+      const cur = list.findIndex(([, u]) => u === useGame.getState().playerModel);
+      const [name, url] = list[(cur + 1) % list.length];
+      if (runtime.player) useGame.setState({ exitPosition: runtime.player.currPos.toArray() });
+      useGame.setState({ playerModel: url });
+      useGame.getState().showToast(name);
+    } },
     { label: 'Jour / nuit', icon: '🌙', run: () => useGame.getState().toggleNight() },
     { label: 'Soins', icon: '❤️', run: () => useGame.getState().heal() },
     { label: 'Munitions', icon: '🔫', run: () => useGame.setState({ ammo: Object.fromEntries(WEAPONS.map((w) => [w.id, { mag: w.mag ?? Infinity, reserve: w.ammo }])) }) },

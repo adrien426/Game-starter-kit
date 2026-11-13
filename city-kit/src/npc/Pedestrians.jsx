@@ -126,8 +126,9 @@ function Pedestrian({ url, loop, start, dir }) {
       }
       // run over by a vehicle?
       for (const v of runtime.vehicles.values()) {
-        if (!v.handle?.currPos) continue;
-        const sp = v.handle.currLinVel.length();
+        if (!v.handle?.body) continue;
+        const lv = v.handle.body.linvel(); // read the body: a sleeping vehicle has stale ecctrl values
+        const sp = Math.hypot(lv.x, lv.y, lv.z);
         if (sp < 5) continue;
         if (v.handle.currPos.distanceTo(v1.copy(st.pos).setY(v.handle.currPos.y)) < v.def.size[0] * 0.5 + 0.7 && Math.abs(v.handle.currPos.y - st.pos.y) < 2.5) {
           st.state = 'dead'; st.timer = 0; st.health = 0;
