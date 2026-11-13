@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Coup d'envoi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Barlow+Condensed:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Versions are pinned: the game will not break when a library releases a new version -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+      "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="game"></div>
+
+  <section id="loading" class="screen">
+    <h1 class="title">Coup d'envoi</h1>
+    <div class="load"><div id="load-bar"></div></div>
+    <p class="hint">Chargement du stade…</p>
+  </section>
+
+  <section id="menu" class="screen" hidden>
+    <h1 class="title">Coup d'envoi</h1>
+    <p class="tagline">Un match de 3 minutes contre le gardien.</p>
+    <div class="buttons">
+      <button id="btn-play" class="primary">Jouer</button>
+      <button id="btn-help">Commandes</button>
+    </div>
+  </section>
+
+  <section id="help" class="screen" hidden>
+    <h2>Commandes</h2>
+    <dl class="keys">
+      <dt>ZQSD ou flèches</dt><dd>Courir</dd>
+      <dt>Maj</dt><dd>Sprinter</dd>
+      <dt>Espace</dt><dd>Maintenir pour charger, relâcher pour tirer</dd>
+      <dt>Échap</dt><dd>Pause</dd>
+    </dl>
+    <p class="hint">Sur téléphone : joystick à gauche, boutons à droite.</p>
+    <div class="buttons"><button id="btn-help-back" class="primary">Retour</button></div>
+  </section>
+
+  <section id="pause" class="screen" hidden>
+    <h2>Pause</h2>
+    <div class="buttons">
+      <button id="btn-resume" class="primary">Reprendre</button>
+      <button id="btn-restart">Recommencer</button>
+      <button id="btn-quit">Menu principal</button>
+    </div>
+  </section>
+
+  <section id="ended" class="screen" hidden>
+    <h2 id="result-title">Fin du match</h2>
+    <p id="result-score" class="big-score">0 – 0</p>
+    <div class="buttons">
+      <button id="btn-again" class="primary">Rejouer</button>
+      <button id="btn-menu">Menu principal</button>
+    </div>
+  </section>
+
+  <div id="hud" hidden>
+    <div class="board">
+      <span class="team home">Toi</span>
+      <span id="score-home" class="n">0</span>
+      <span id="clock">3:00</span>
+      <span id="score-away" class="n">0</span>
+      <span class="team away">Gardien</span>
+    </div>
+    <button id="btn-pause" aria-label="Pause">II</button>
+    <div id="charge-wrap"><div id="charge"></div></div>
+    <div id="banner" hidden></div>
+  </div>
+
+  <div id="touch">
+    <div class="stick"><div class="knob"></div></div>
+    <div class="actions">
+      <button class="btn-sprint">Sprint</button>
+      <button class="btn-kick">Tir</button>
+    </div>
+  </div>
+
+  <script>
+    // Show loading errors on screen instead of a silent black page
+    addEventListener('error', (e) => {
+      const hint = document.querySelector('#loading .hint');
+      if (hint) hint.textContent = 'Erreur : ' + (e.message || 'chargement impossible') + '. Vérifie la connexion puis recharge la page.';
+    });
+  </script>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
