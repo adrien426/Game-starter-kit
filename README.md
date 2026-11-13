@@ -71,3 +71,16 @@ textes du jeu en français. Le jeu doit marcher au clavier et au tactile.
 ## Crédits
 
 three.js (MIT), Rapier (Apache-2.0), modèle Soldier issu des exemples three.js.
+
+---
+
+# City Starter Kit (3D, Vite + React) — dossier `city-kit/`
+
+Deuxième kit, base pour un jeu de ville ouverte type GTA : personnage animé (ecctrl), combat,
+armes, voitures, moto, hélicoptère, ville générée, terrain d'essai, piétons, jour/nuit,
+téléphone, roue des armes, contrôles tactiles. Voir [`city-kit/README.md`](city-kit/README.md).
+
+Publication : le workflow `.github/workflows/pages-preview.yml` publie sur la branche `gh-pages`
+(Settings → Pages → « Deploy from a branch » → `gh-pages` / root) :
+- `main` → `https://<user>.github.io/<repo>/` (foot) et `.../city/` (ville)
+- autre branche → `https://<user>.github.io/<repo>/preview/<branche>/city/`

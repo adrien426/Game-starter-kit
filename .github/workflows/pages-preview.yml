@@ -1,0 +1,90 @@
+# Publishes the site to the gh-pages branch:
+#   main             -> site root           https://<user>.github.io/<repo>/
+#   any other branch -> preview/<branch>/   https://<user>.github.io/<repo>/preview/<branch>/
+# The football kit stays at the root of each site, the 3D city kit (Vite build of
+# city-kit/) is published in the city/ sub-folder.
+# Only the 5 most recently published previews are kept. Deleting a branch removes its preview.
+# GitHub Pages must use "Deploy from a branch" with gh-pages / (root).
+name: Pages (main + branch previews)
+
+on:
+  push:
+    branches-ignore: [gh-pages, preview]
+  delete:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.ref_type == 'branch'
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'push'
+        with:
+          path: src
+
+      - uses: actions/setup-node@v4
+        if: github.event_name == 'push'
+        with:
+          node-version: 22
+
+      - name: Build the city kit (Vite)
+        if: github.event_name == 'push'
+        working-directory: src/city-kit
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Assemble the site
+        if: github.event_name == 'push'
+        run: |
+          mkdir -p out
+          rsync -a --exclude .git --exclude .github --exclude city-kit src/ out/
+          mkdir -p out/city
+          cp -r src/city-kit/dist/. out/city/
+
+      - name: Update gh-pages
+        env:
+          EVENT: ${{ github.event_name }}
+          BRANCH: ${{ github.event_name == 'push' && github.ref_name || github.event.ref }}
+          REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+        run: |
+          set -euo pipefail
+          if git clone -q --depth 1 --branch gh-pages "$REMOTE" site; then :; else
+            mkdir site && git -C site init -q -b gh-pages && git -C site remote add origin "$REMOTE"
+          fi
+          slug=$(printf '%s' "$BRANCH" | tr -c 'A-Za-z0-9._-' '-')
+          if [ "$EVENT" = delete ]; then
+            rm -rf "site/preview/$slug"
+          elif [ "$BRANCH" = main ]; then
+            find site -mindepth 1 -maxdepth 1 ! -name .git ! -name preview -exec rm -rf {} +
+            rsync -a out/ site/
+          else
+            rm -rf "site/preview/$slug" && mkdir -p "site/preview/$slug"
+            rsync -a out/ "site/preview/$slug/"
+            order=site/preview/.order
+            { echo "$slug"; [ -f "$order" ] && grep -vx "$slug" "$order" || true; } | head -n 5 > "$order.new"
+            mv "$order.new" "$order"
+            for d in site/preview/*/; do
+              d=${d%/}; n=${d##*/}
+              grep -qx "$n" "$order" || rm -rf "$d"
+            done
+          fi
+          touch site/.nojekyll
+          cd site
+          git add -A
+          if git diff --cached --quiet; then echo "Nothing to publish"; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898341+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Publish $BRANCH ($EVENT)"
+          git push -q origin gh-pages
+          if [ "$EVENT" = push ]; then
+            url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
+            [ "$BRANCH" = main ] || url="${url}preview/$slug/"
+            echo "Published: ${url}city/ (city kit) and $url (football kit)" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
