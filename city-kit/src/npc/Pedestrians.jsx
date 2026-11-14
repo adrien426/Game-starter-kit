@@ -14,6 +14,43 @@ import { LAYOUT, rng } from '../world/cityLayout';
 const N = CONFIG.npc;
 const Y = CONFIG.city.sidewalkHeight;
 const v1 = new THREE.Vector3();
+const v2 = new THREE.Vector3();
+
+// ---------- wounds: blood spots stuck to the bone that was hit ----------
+const WOUND_GEO = new THREE.SphereGeometry(1, 8, 6);
+// bright, slightly glossy red so it reads on dark clothes too
+const WOUND_MATS = ['#b01010', '#8f0909', '#c41a12'].map((c) => new THREE.MeshStandardMaterial({ color: c, emissive: '#3a0000', roughness: 0.25, metalness: 0.05 }));
+const POOL_GEO = new THREE.CircleGeometry(1, 20);
+const POOL_MAT = new THREE.MeshStandardMaterial({ color: '#4a0303', roughness: 0.2, metalness: 0.15, transparent: true, opacity: 0.92, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+const WOUND_BONES = ['Head', 'Neck', 'Spine2', 'Spine1', 'Spine', 'Hips', 'LeftArm', 'RightArm', 'LeftForeArm', 'RightForeArm', 'LeftUpLeg', 'RightUpLeg', 'LeftLeg', 'RightLeg'];
+
+/** Adds 1-3 blood spots on the bone closest to the hit point. */
+function addWound(bones, hitPoint, wounds, big) {
+  const point = hitPoint.clone();
+  let best = null;
+  let bestD = Infinity;
+  for (const name of WOUND_BONES) {
+    const b = bones[name];
+    if (!b) continue;
+    const d = b.getWorldPosition(v2).distanceToSquared(point);
+    if (d < bestD) { bestD = d; best = b; }
+  }
+  if (!best) return;
+  const n = big ? 4 : 2 + Math.floor(Math.random() * 2);
+  for (let k = 0; k < n; k++) {
+    const m = new THREE.Mesh(WOUND_GEO, WOUND_MATS[Math.floor(Math.random() * WOUND_MATS.length)]);
+    const local = best.worldToLocal(v2.copy(point));
+    // keep the spot on the surface, around the bone (~body radius)
+    if (local.length() > 0.11) local.setLength(0.11);
+    local.add(v1.set((Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.12));
+    m.position.copy(local);
+    const r = (big ? 0.09 : 0.065) + Math.random() * 0.04;
+    m.scale.set(r, r * (0.6 + Math.random() * 0.6), r * 0.45);
+    m.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+    best.add(m);
+    wounds.push(m);
+  }
+}
 
 /** Sidewalk loop around a block: 4 corners, walked clockwise. */
 function blockLoop(block) {
@@ -50,7 +87,9 @@ function Pedestrian({ url, loop, start, dir }) {
   const body = useRef();
   const collider = useRef();
   const group = useRef();
-  const { model, mixer, actions } = useCharacterModel(url);
+  const { model, mixer, actions, bones } = useCharacterModel(url);
+  const wounds = useRef([]);
+  const pool = useRef();
   const animator = useMemo(() => new Animator(actions), [actions]);
   const s = useRef({ t: start, dir, health: N.health, state: 'walk', timer: 0, pos: new THREE.Vector3(), yaw: 0, pushed: new THREE.Vector3() });
 
@@ -69,10 +108,13 @@ function Pedestrian({ url, loop, start, dir }) {
       clearInterval(id);
       handle = collider.current.handle;
       runtime.damageables.set(handle, {
-        hit: (damage, _point, hitDir, source) => {
+        npc: true,
+        pos: s.current.pos, // feet position, read by tools / aim assist
+        hit: (damage, point, hitDir, source) => {
           const st = s.current;
           if (st.state === 'dead') return;
           st.health -= damage;
+          addWound(bones, point, wounds.current, damage >= 30);
           sfx.hit();
           if (st.health <= 0) {
             st.state = 'dead';
@@ -92,7 +134,7 @@ function Pedestrian({ url, loop, start, dir }) {
       });
     }, 30);
     return () => { clearInterval(id); if (handle !== null) runtime.damageables.delete(handle); };
-  }, [animator]);
+  }, [animator, bones]);
 
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
@@ -104,6 +146,8 @@ function Pedestrian({ url, loop, start, dir }) {
       st.pushed.multiplyScalar(Math.exp(-4 * dt));
       if (st.timer > N.respawnDelay) {
         st.state = 'walk'; st.health = N.health; st.t = Math.random() * 4;
+        for (const w of wounds.current) w.parent?.remove(w);
+        wounds.current.length = 0;
       }
     } else if (st.state === 'hurt') {
       st.timer -= dt;
@@ -134,6 +178,8 @@ function Pedestrian({ url, loop, start, dir }) {
           st.state = 'dead'; st.timer = 0; st.health = 0;
           st.pushed.copy(v.handle.currLinVel).setY(0).multiplyScalar(0.6);
           animator.play('FallFlat', { once: true, fade: 0.05, timeScale: 1.5 });
+          addWound(bones, v2.copy(st.pos).setY(st.pos.y + 1.1), wounds.current, true);
+          addWound(bones, v2.copy(st.pos).setY(st.pos.y + 0.5), wounds.current, true);
           effects.impact(v1.copy(st.pos).setY(st.pos.y + 1), '#b0102a', 14);
           sfx.punch();
           if (v.driver === 'player') { useGame.getState().addKill(); }
@@ -146,7 +192,17 @@ function Pedestrian({ url, loop, start, dir }) {
       group.current.rotation.y = st.yaw;
     }
     // animate only when close enough (cheap LOD)
-    if (runtime.focus.distanceToSquared(st.pos) < 120 * 120) mixer.update(dt);
+    // blood pool growing under a dead body
+    if (pool.current) {
+      const grow = st.state === 'dead' ? Math.min(1, st.timer / 4) : 0;
+      pool.current.visible = grow > 0;
+      pool.current.position.set(st.pos.x, st.pos.y + 0.02, st.pos.z);
+      pool.current.scale.setScalar(0.15 + grow * 0.75);
+    }
+    // animate (and draw) only near the player: lets the city hold more NPCs
+    const d2 = runtime.focus.distanceToSquared(st.pos);
+    if (d2 < N.animDistance * N.animDistance) mixer.update(dt);
+    if (group.current) group.current.visible = d2 < 160 * 160;
   });
 
   return (
@@ -154,6 +210,7 @@ function Pedestrian({ url, loop, start, dir }) {
       <RigidBody ref={body} type="kinematicPosition" colliders={false} position={[loop[0].x, loop[0].y + 0.9, loop[0].z]} userData={{ type: 'npc', ecctrl: { excludeRay: true } }}>
         <CapsuleCollider ref={collider} args={[0.55, 0.3]} sensor />
       </RigidBody>
+      <mesh ref={pool} geometry={POOL_GEO} material={POOL_MAT} rotation-x={-Math.PI / 2} visible={false} />
       <group ref={group}>
         <primitive object={model} />
       </group>

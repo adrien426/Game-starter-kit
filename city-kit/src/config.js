@@ -73,7 +73,8 @@ export const CONFIG = {
 
   // ---------- NPC ----------
   npc: {
-    count: 14,
+    count: 32, // pedestrians walking around the blocks
+    animDistance: 90, // farther than this, NPCs stop animating (phones)
     models: [
       'models/characters/james.glb',
       'models/characters/pnj_agent.glb',
