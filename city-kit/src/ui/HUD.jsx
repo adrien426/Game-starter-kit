@@ -123,7 +123,12 @@ function InGame() {
         <div className="kills">K.O. : {g.kills}</div>
       </div>
       {!vehicle && (weapon.id !== 'fists' || g.cameraMode === 'first') && <div className={`crosshair ${g.aiming ? 'aim' : ''} ${weapon.id === 'fists' ? 'dot' : ''}`} />}
-      <button className={`cam-btn ${isTouchDevice() ? 'cam-touch' : ''}`} title="Caméra (V)" onClick={() => g.toggleCamera()}>{g.cameraMode === 'first' ? '👁 1re' : '🎥 3e'}</button>
+      {/* three small round buttons by the minimap: camera, weapons, phone */}
+      <div className={`map-buttons ${isTouchDevice() ? 'mb-touch' : ''}`}>
+        <button title="Caméra (V)" onClick={() => g.toggleCamera()}>{g.cameraMode === 'first' ? '👁' : '🎥'}</button>
+        <button title="Armes (Tab)" disabled={!!vehicle} onClick={() => toggleOverlay('wheelOpen')}>🔫</button>
+        <button title="Téléphone (T)" onClick={() => toggleOverlay('phoneOpen')}>📱</button>
+      </div>
       {vehicle && (
         <div className={`speedo ${isTouchDevice() ? "speedo-touch" : ""}`}>
           <span className="n">{g.speedKmh}</span> km/h
@@ -137,7 +142,6 @@ function InGame() {
       <Minimap />
       <button className="pause-btn" onClick={() => { document.exitPointerLock?.(); g.setPhase('paused'); }}>II</button>
       {isTouchDevice() && <TouchControls vehicle={vehicle} armed={weapon.id !== 'fists'} canEnter={!!g.prompt} />}
-      {!isTouchDevice() && !vehicle && <div className="hint-keys">Tab : armes · T : téléphone · V : caméra</div>}
       {g.wheelOpen && <WeaponWheel />}
       {g.phoneOpen && <Phone />}
     </>
@@ -155,10 +159,6 @@ function TouchControls({ vehicle, armed, canEnter }) {
   return (
     <div className="touch">
       <Joystick joystickWrapperStyle={{ left: 28, bottom: 28, top: 'auto', width: 170, height: 170, background: 'rgba(0,0,0,0.18)' }} />
-      <div className="touch-top">
-        {!vehicle && <button onClick={() => toggleOverlay('wheelOpen')}>Armes</button>}
-        <button onClick={() => toggleOverlay('phoneOpen')}>Tél.</button>
-      </div>
       <div className="touch-buttons">
         {!vehicle && (
           <>

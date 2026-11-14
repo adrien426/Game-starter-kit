@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
-import { CuboidCollider } from '@react-three/rapier';
+import { CuboidCollider, useRapier } from '@react-three/rapier';
 import { EcctrlVehicle, ShapeCastWheel, ThrustPropeller } from 'ecctrl/vehicle';
 import { ASSET, CONFIG, VEHICLE_SPAWNS, VEHICLE_TYPES } from '../config';
 import { Animator, useCharacterModel } from '../player/character';
@@ -26,7 +26,7 @@ function groundHeight(x, z) {
 export function Vehicles() {
   return VEHICLE_SPAWNS.map(([type, x, z, heading], i) => {
     const def = VEHICLE_TYPES[type];
-    const props = { key: i, id: `${type}-${i}`, type, def, position: [x, groundHeight(x, z) + (def.kind === 'heli' ? 0.25 : 0.05), z], rotation: [0, heading, 0] };
+    const props = { key: i, id: `${type}-${i}`, type, def, position: [x, groundHeight(x, z) + (def.kind === 'heli' ? 0.25 : 0), z], rotation: [0, heading, 0] };
     return def.kind === 'heli' ? <Helicopter {...props} /> : <WheeledVehicle {...props} />;
   });
 }
@@ -178,17 +178,12 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
   const { body, parts, makeWheel } = useVehicleParts(def);
   const isBike = def.kind === 'bike';
   const flipT = useRef(0);
-  const parkT = useRef(-3); // let it settle on its wheels before the first sleep
-  const [awake, setAwake] = useState(true);
-  const sleptAt = useRef(0);
-  // Put the body to sleep AFTER React re-rendered the vehicle: the re-render
-  // syncs the rigid body props and wakes it up (that made an endless
-  // sleep / wake loop that ate all the memory).
-  useEffect(() => {
-    if (awake) return;
-    const id = requestAnimationFrame(() => { handle.current?.body?.sleep(); sleptAt.current = performance.now(); });
-    return () => cancelAnimationFrame(id);
-  }, [awake]);
+  // Parked = kinematic body: perfectly still, no tyre physics, no React
+  // re-render. It becomes a real (dynamic) car when someone drives it or when
+  // a moving vehicle hits it, and is parked again once it stopped.
+  const parked = useRef(true);
+  const parkT = useRef(0);
+  const { rapier } = useRapier();
   const nitroFx = useRef(0);
   const flame = useRef(null);
   const modulesReady = useModulesReady();
@@ -238,20 +233,40 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
     }
     const body = h.body;
     const yAxis = h.bodyYAxis;
-    // Parked: once settled, the car goes to sleep with ecctrl switched off.
-    // (ecctrl's tyre model keeps oscillating at rest: the cars shook left/right.)
-    // It wakes up as soon as someone drives it.
+    const T = rapier.RigidBodyType;
     if (active) {
       parkT.current = 0;
-      if (!awake) setAwake(true);
-    } else if (!awake && !body.isSleeping() && performance.now() - sleptAt.current > 500) {
-      // pushed / hit while asleep: switch ecctrl back on so it stands on its wheels
-      setAwake(true);
-      parkT.current = -1;
-    } else if (awake) {
+      if (parked.current) { parked.current = false; body.setBodyType(T.Dynamic, true); }
+    } else if (parked.current) {
+      if (body.bodyType() !== T.KinematicPositionBased) {
+        body.setLinvel({ x: 0, y: 0, z: 0 }, false);
+        body.setAngvel({ x: 0, y: 0, z: 0 }, false);
+        body.setBodyType(T.KinematicPositionBased, false);
+      }
+      // a vehicle coming fast into it: become a real car so it gets pushed
+      const p = body.translation();
+      for (const v of runtime.vehicles.values()) {
+        const ob = v.handle?.body;
+        if (!ob || ob === body || ob.bodyType() !== T.Dynamic) continue;
+        const lv = ob.linvel();
+        if (Math.hypot(lv.x, lv.z) < 3) continue;
+        const q = ob.translation();
+        const dx = p.x - q.x;
+        const dz = p.z - q.z;
+        const coming = lv.x * dx + lv.z * dz > 0; // driving toward this car
+        if (coming && Math.hypot(dx, dz) < (def.size[2] + v.def.size[2]) * 0.4 + 0.6) {
+          parked.current = false;
+          parkT.current = 0;
+          body.setBodyType(T.Dynamic, true);
+          break;
+        }
+      }
+    } else {
       const lv = body.linvel();
-      parkT.current = Math.hypot(lv.x, lv.y, lv.z) < 1.2 ? parkT.current + dt : Math.min(parkT.current, 0);
-      if (parkT.current > 1.5) { setAwake(false); sleptAt.current = performance.now(); }
+      const av = body.angvel();
+      const still = Math.hypot(lv.x, lv.y, lv.z) < 0.4 && Math.hypot(av.x, av.y, av.z) < 0.4 && h.bodyYAxis.y > 0.9;
+      parkT.current = still ? parkT.current + dt : 0;
+      if (parkT.current > 1) parked.current = true; // switched to kinematic next frame
     }
     // ---- nitro (Shift / touch button): extra push forward, gauge refills slowly
     if (active) {
@@ -273,7 +288,7 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
     if (flame.current) { flame.current.visible = nitroFx.current > 0.05; flame.current.scale.setScalar(0.6 + nitroFx.current * (0.6 + Math.random() * 0.4)); }
     // keep motorbikes upright (ecctrl has no 2-wheel balance yet).
     // Velocity-level control (no torque): stable whatever the bike inertia.
-    if (isBike && awake) {
+    if (isBike && !parked.current) {
       const fwd = h.bodyZAxis;
       const roll = h.bodyXAxis.dot(up); // 0 when upright, >0 when leaning around +Z
       const av = h.currAngVel;
@@ -309,7 +324,7 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
 
   const [w, hgt, len] = def.size;
   return (
-    <EcctrlVehicle ref={handle} enable={awake} position={position} rotation={rotation} carConfig={carConfig} userData={{ type: 'vehicle', id }} linearDamping={0.05} angularDamping={0.4}>
+    <EcctrlVehicle ref={handle} position={position} rotation={rotation} carConfig={carConfig} userData={{ type: 'vehicle', id }} linearDamping={0.05} angularDamping={0.4}>
       {/* chassis: its bottom (chassisBottom) is lower than a fully compressed
           wheel, so a hard landing hits the chassis, never pushes the wheel
           shape into the ground (that gives NaN in ecctrl) */}

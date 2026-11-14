@@ -99,3 +99,10 @@ canvas { touch-action: none; display: block; }
 .cam-btn.cam-touch { left: auto; bottom: auto; right: 140px; top: 110px; }
 .crosshair.dot { width: 8px; height: 8px; margin: -4px 0 0 -4px; border-width: 0; }
 .crosshair.dot::after { width: 6px; height: 6px; margin: -3px 0 0 -3px; }
+
+/* camera / weapons / phone: small round buttons next to the minimap */
+.map-buttons { position: absolute; left: 16px; bottom: 206px; width: 180px; display: flex; justify-content: center; gap: 14px; pointer-events: auto; }
+.map-buttons.mb-touch { left: auto; right: 12px; bottom: auto; top: 238px; width: 120px; gap: 6px; justify-content: space-between; }
+.ui .map-buttons button { width: 40px; height: 40px; padding: 0 !important; border-radius: 50%; font-size: 19px !important; line-height: 1; letter-spacing: 0; background: rgba(13,17,23,0.6); border: 2px solid rgba(255,255,255,0.7); display: flex; align-items: center; justify-content: center; }
+.ui .map-buttons button:disabled { opacity: 0.35; }
+.map-buttons.mb-touch button { width: 36px; height: 36px; font-size: 17px !important; }
