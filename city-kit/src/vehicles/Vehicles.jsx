@@ -161,6 +161,15 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
   const flipT = useRef(0);
   const parkT = useRef(-3); // let it settle on its wheels before the first sleep
   const [awake, setAwake] = useState(true);
+  const sleptAt = useRef(0);
+  // Put the body to sleep AFTER React re-rendered the vehicle: the re-render
+  // syncs the rigid body props and wakes it up (that made an endless
+  // sleep / wake loop that ate all the memory).
+  useEffect(() => {
+    if (awake) return;
+    const id = requestAnimationFrame(() => { handle.current?.body?.sleep(); sleptAt.current = performance.now(); });
+    return () => cancelAnimationFrame(id);
+  }, [awake]);
   const nitroFx = useRef(0);
   const flame = useRef(null);
   const modulesReady = useModulesReady();
@@ -216,14 +225,14 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
     if (active) {
       parkT.current = 0;
       if (!awake) setAwake(true);
-    } else if (!awake && !body.isSleeping()) {
+    } else if (!awake && !body.isSleeping() && performance.now() - sleptAt.current > 500) {
       // pushed / hit while asleep: switch ecctrl back on so it stands on its wheels
       setAwake(true);
       parkT.current = -1;
     } else if (awake) {
       const lv = body.linvel();
       parkT.current = Math.hypot(lv.x, lv.y, lv.z) < 1.2 ? parkT.current + dt : Math.min(parkT.current, 0);
-      if (parkT.current > 1.5) { setAwake(false); body.sleep(); }
+      if (parkT.current > 1.5) { setAwake(false); sleptAt.current = performance.now(); }
     }
     // ---- nitro (Shift / touch button): extra push forward, gauge refills slowly
     if (active) {
