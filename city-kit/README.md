@@ -78,7 +78,7 @@ city-kit/
     player/
       Player.jsx            le personnage : ecctrl + animations + armes + coups + monter en véhicule
       character.js          chargement d'un perso Mixamo + animations partagées + visée procédurale
-    vehicles/Vehicles.jsx   voitures / moto (ecctrl ShapeCastWheel) et hélico (ecctrl ThrustPropeller)
+    vehicles/Vehicles.jsx   voitures / moto (contrôleur de véhicule Rapier) et hélico (ecctrl ThrustPropeller)
     combat/                 tirs (raycast), coups (zone), effets (traçantes, étincelles, flash)
     npc/Pedestrians.jsx     piétons : marchent, fuient, tombent, réapparaissent
     world/                  ville générée, terrain d'essai, éclairage (ciel, soleil, ombres, nuit)
@@ -128,14 +128,17 @@ Mettre un `.glb` Mixamo dans `source/characters/`, lancer `npm run build:player`
 ## Notes techniques (pourquoi c'est fait comme ça)
 
 - **ecctrl 2** fournit le contrôleur de personnage (capsule flottante, pentes, plateformes
-  mobiles), les voitures (roues ShapeCast avec vrai couple moteur et adhérence) et le vol
-  stabilisé (utilisé pour l'hélicoptère). Il ne lit pas le clavier : on lui envoie
+  mobiles) et le vol stabilisé (utilisé pour l'hélicoptère).
+- **Voitures et moto : contrôleur de véhicule de Rapier** (`world.createVehicleController`,
+  roues par rayons, suspension, adhérence). Les roues ShapeCast d'ecctrl faisaient trembler
+  les voitures à l'arrêt ; celui de Rapier est stable. Une voiture garée est un corps
+  « kinematic » (immobile) qui redevient physique quand on la conduit ou qu'on la percute. Il ne lit pas le clavier : on lui envoie
   `setMovement(...)` depuis `input.js`, ce qui permet de brancher clavier, tactile ou IA.
 - **Un pas de physique par image** (`<Physics paused>` + `TimeControl`) : ecctrl applique ses
   forces une fois par image ; plusieurs pas fixes par image feraient s'enfoncer les voitures
   sous 60 FPS. En dessous de 30 FPS le jeu ralentit au lieu de devenir instable.
-- **Roues montées 2 images après le châssis** (`useModulesReady`) : sinon, au premier frame,
-  ecctrl divise par une gravité nulle et la roue garde une vitesse NaN (voiture bloquée).
+- **Hélices montées 2 images après le châssis** (`useModulesReady`) : sinon, au premier frame,
+  ecctrl divise par une gravité nulle et garde des valeurs NaN.
 - **Dans un callback de requête Rapier, ne lire que `collider.handle`** : appeler une autre
   méthode Rapier à l'intérieur fait planter le WASM.
 - La moto est maintenue debout par un couple correcteur (ecctrl n'a pas encore de mode deux roues)
