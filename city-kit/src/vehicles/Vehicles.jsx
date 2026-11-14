@@ -337,8 +337,10 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
     }
     if (flame.current) { flame.current.visible = nitroFx.current > 0.05; flame.current.scale.setScalar(0.6 + nitroFx.current * (0.6 + Math.random() * 0.4)); }
 
-    const maxSteer = (isBike ? 0.45 : 0.55) * (1 - Math.min(Math.abs(speed) / 45, 0.6));
-    steer.current = THREE.MathUtils.lerp(steer.current, steerIn * maxSteer, 1 - Math.exp(-8 * dt));
+    const maxSteer = isBike
+      ? 0.42 * (1 - Math.min(Math.abs(speed) / 30, 0.75)) // bikes: gentle at speed
+      : 0.55 * (1 - Math.min(Math.abs(speed) / 45, 0.6));
+    steer.current = THREE.MathUtils.lerp(steer.current, steerIn * maxSteer, 1 - Math.exp(-(isBike ? 5 : 8) * dt));
     const BRAKE = MASS * 0.06;
     wheels.forEach((wh, i) => {
       c.setWheelSteering(i, wh.front ? steer.current : 0);
@@ -349,20 +351,28 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
       c.setWheelFrictionSlip(i, hb ? 1.0 : isBike ? 2.4 : 2.0); // handbrake = rear slides
     });
 
-    // keep motorbikes upright (velocity-level, around the forward axis)
+    // motorbike: stay upright (roll) and do not wheelie / nose-dive (pitch).
+    // Velocity-level control, so it never fights the solver.
     if (isBike && !parked.current) {
       const fwd = h.bodyZAxis;
+      const side = h.bodyXAxis;
       const av = h.currAngVel;
-      const roll = h.bodyXAxis.dot(up);
+      const roll = side.dot(up);
       const rollRate = av.dot(fwd);
-      const next = THREE.MathUtils.lerp(rollRate, THREE.MathUtils.clamp(-roll * 10, -4, 4), 1 - Math.exp(-12 * dt));
-      const d = next - rollRate;
-      if (Math.abs(d) > 1e-4) b.setAngvel({ x: av.x + fwd.x * d, y: av.y + fwd.y * d, z: av.z + fwd.z * d }, false);
+      const dRoll = THREE.MathUtils.lerp(rollRate, THREE.MathUtils.clamp(-roll * 10, -4, 4), 1 - Math.exp(-12 * dt)) - rollRate;
+      const grounded = wheels.some((_, i) => c.wheelIsInContact(i));
+      const pitchRate = av.dot(side);
+      const dPitch = grounded ? -pitchRate * (1 - Math.exp(-8 * dt)) : 0;
+      if (Math.abs(dRoll) + Math.abs(dPitch) > 1e-4) {
+        b.setAngvel({ x: av.x + fwd.x * dRoll + side.x * dPitch, y: av.y + fwd.y * dRoll + side.y * dPitch, z: av.z + fwd.z * dRoll + side.z * dPitch }, false);
+      }
     }
-    // visual lean of the whole bike (body, wheels, rider) in turns
+    // visual lean of the whole bike (body, wheels, rider): real lean angle
+    // of a turn = atan(speed x turn rate / g)
     if (isBike && lean.current) {
       const yawRate = h.currAngVel.dot(up);
-      lean.current.rotation.z = THREE.MathUtils.lerp(lean.current.rotation.z, THREE.MathUtils.clamp(-yawRate * speed * 0.05, -0.55, 0.55), 1 - Math.exp(-6 * dt));
+      const target = -Math.atan((speed * yawRate) / 9.81);
+      lean.current.rotation.z = THREE.MathUtils.lerp(lean.current.rotation.z, THREE.MathUtils.clamp(target, -0.6, 0.6), 1 - Math.exp(-5 * dt));
     }
 
     // put a flipped vehicle back on its wheels
@@ -398,7 +408,7 @@ function WheeledVehicle({ id, type, def, position, rotation }) {
   });
 
   return (
-    <RigidBody ref={rb} colliders={false} position={position} rotation={rotation} userData={{ type: 'vehicle', id }} linearDamping={0.05} angularDamping={isBike ? 2 : 0.8} canSleep={false}>
+    <RigidBody ref={rb} colliders={false} position={position} rotation={rotation} userData={{ type: 'vehicle', id }} linearDamping={0.05} angularDamping={isBike ? 1 : 0.8} canSleep={false}>
       {/* chassis low and heavy (stable), light cabin on top */}
       <CuboidCollider args={[w * 0.45, hgt * 0.2, len * 0.47]} position={[0, def.wheelY + hgt * 0.05, 0]} mass={MASS * 0.85} friction={0.3} />
       <CuboidCollider args={[w * 0.4, hgt * 0.17, len * 0.25]} position={[0, def.wheelY + hgt * 0.5, -len * 0.05]} mass={MASS * 0.15} friction={0.3} />
@@ -450,7 +460,7 @@ function Helicopter({ id, type, def, position, rotation }) {
   useRegister(id, type, def, handle, object);
   const droneConfig = useMemo(() => ({
     controlMode: 'VELOCITY', maxHorizSpeed: def.maxHorizSpeed, maxVertSpeed: def.maxVertSpeed,
-    maxTiltAngle: 0.32, maxYawRate: 1.3, airDragFactor: 0.35,
+    maxTiltAngle: 0.5, maxYawRate: 1.6, airDragFactor: 0.15, HORIZ_VEL_P: 1.6, VERT_VEL_P: 2.5,
   }), [def]);
 
   useDriving(id, def, handle, object, (h, active, dt) => {

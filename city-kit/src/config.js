@@ -136,7 +136,7 @@ export const VEHICLE_TYPES = {
   },
   heli: {
     kind: 'heli', name: 'Hélicoptère', model: 'models/vehicles/heli.glb',
-    size: [3.0, 3.2, 10.0], maxHorizSpeed: 32, maxVertSpeed: 9,
+    size: [3.0, 3.2, 10.0], maxHorizSpeed: 60, maxVertSpeed: 14, // m/s (60 m/s = 216 km/h)
     seat: [0.45, 1.05, 2.1],
     roof: 3.15,
   },

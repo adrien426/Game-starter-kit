@@ -128,7 +128,7 @@ function PlayerBody({ modelUrl }) {
     model.visible = !firstPerson;
     const aimHeld = playing && armed && input.held('aim');
     // first person: the body always faces where you look (FPS controls)
-    const faceCamera = playing && (firstPerson || (armed && (aimHeld || input.held('fire'))));
+    const faceCamera = playing && (firstPerson || (armed && (aimHeld || input.held('fire') || st.shotQueued > 0 || st.cooldown > -0.4)));
     if (aimHeld !== game.aiming) useGame.setState({ aiming: aimHeld });
     h.setLockForward(faceCamera);
     flatDir.set(runtime.aimDir.x, 0, runtime.aimDir.z).normalize();
@@ -147,12 +147,17 @@ function PlayerBody({ modelUrl }) {
       for (let i = 0; i < 3; i++) if (input.pressed('weapon' + (i + 1)) && WEAPONS[i]) game.setWeapon(i);
       if (input.pressed('reload') && armed && game.reload(weapon.id)) { st.reloadT = 1.1; sfx.door(); }
 
-      const trigger = weapon.auto ? input.held('fire') : input.pressed('fire');
+      // single-shot guns: remember the tap a moment, the arm needs ~0.1 s to come
+      // up (a tap on the very first frame used to be lost)
+      if (input.pressed('fire')) st.shotQueued = 0.4;
+      st.shotQueued = Math.max(0, (st.shotQueued || 0) - dt);
+      const trigger = weapon.auto ? input.held('fire') || st.shotQueued > 0 : st.shotQueued > 0;
       const free = !act || act.cancelable;
       const guarding = !armed && input.held('aim') && h.isOnGround && !act;
       st.guard = guarding;
       if (!armed && trigger && free && h.isOnGround) {
         // combo with the Drive clips: jab -> jab-cross -> fist-fight finisher
+        st.shotQueued = 0;
         const now = performance.now() / 1000;
         st.combo = now - st.lastPunch < 1.1 ? (st.combo + 1) % 3 : 0;
         st.lastPunch = now;
@@ -162,6 +167,7 @@ function PlayerBody({ modelUrl }) {
         else startAction('FistFightA', { timeScale: 1.8, hits: [0.35, 0.7, 1.1], damage: C.punchDamage * 1.4, maxT: 1.5, lockMove: true });
         st.combatT = 4;
             } else if (armed && trigger && st.cooldown <= 0 && st.reloadT <= 0 && st.aimW > 0.5) {
+              st.shotQueued = 0;
         st.cooldown = 1 / weapon.fireRate;
         if (game.useAmmo(weapon.id)) {
           const gun = guns[weapon.id];
