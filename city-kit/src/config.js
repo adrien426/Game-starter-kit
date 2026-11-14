@@ -104,6 +104,9 @@ export const WEAPONS = [
   { id: 'rifle', name: 'Fusil d\'assaut', model: 'models/weapons/ak.glb', damage: 22, fireRate: 10, auto: true, ammo: 300, mag: 30, range: 200, spread: 0.012, length: 0.88, twoHands: true },
 ];
 
+// Machine gun on the helicopter nose (fires where the crosshair points)
+export const HELI_GUN = { id: 'heliGun', damage: 30, fireRate: 12, range: 320, spread: 0.008, muzzle: [0, 1.05, 4.3] };
+
 // Vehicles. Wheel positions come from the .json files produced by the GTA5
 // project (models from the Google Drive "3D" folder). Model forward = +Z.
 export const VEHICLE_TYPES = {

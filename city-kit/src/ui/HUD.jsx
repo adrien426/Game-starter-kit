@@ -122,6 +122,7 @@ function InGame() {
         {weapon.id !== 'fists' && <div className="ammo">{ammo.mag} <span>/ {ammo.reserve}</span></div>}
         <div className="kills">K.O. : {g.kills}</div>
       </div>
+      {vehicle?.def.kind === 'heli' && <div className="crosshair" />}
       {!vehicle && (weapon.id !== 'fists' || g.cameraMode === 'first') && <div className={`crosshair ${g.aiming ? 'aim' : ''} ${weapon.id === 'fists' ? 'dot' : ''}`} />}
       {/* three small round buttons by the minimap: camera, weapons, phone */}
       <div className={`map-buttons ${isTouchDevice() ? 'mb-touch' : ''}`}>
@@ -136,7 +137,7 @@ function InGame() {
           {vehicle.def.kind !== 'heli' && <div className="bar nitro"><div className="fill" style={{ width: `${g.nitro * 100}%` }} /></div>}
         </div>
       )}
-      {g.prompt && <div className="prompt">{g.prompt}</div>}
+      {g.prompt && <div className={`prompt ${isTouchDevice() ? 'prompt-touch' : ''}`}>{isTouchDevice() ? g.prompt.replace('F : c', 'C') : g.prompt}</div>}
       {toast && <div className="toast">{toast}</div>}
       {g.dead && <div className="wasted">K.O.</div>}
       <Minimap />
@@ -159,6 +160,11 @@ function TouchControls({ vehicle, armed, canEnter }) {
   return (
     <div className="touch">
       <Joystick joystickWrapperStyle={{ left: 28, bottom: 28, top: 'auto', width: 170, height: 170, background: 'rgba(0,0,0,0.18)' }} />
+      {/* get in / out: its own spot ABOVE the other buttons, so the grid never
+          moves when it appears near a vehicle */}
+      {(canEnter || vehicle) && (
+        <div className="touch-enter"><Btn id="enter" label={vehicle ? 'Sortir' : 'Monter'} /></div>
+      )}
       <div className="touch-buttons">
         {!vehicle && (
           <>
@@ -168,7 +174,6 @@ function TouchControls({ vehicle, armed, canEnter }) {
             {!armed && <Btn id="kick" label="Pied" />}
             <Btn id="run" label="Courir" />
             <Btn id="roll" label="Roulade" />
-            {canEnter && <Btn id="enter" label="Monter" />}
           </>
         )}
         {(kind === 'car' || kind === 'bike') && (
@@ -176,14 +181,13 @@ function TouchControls({ vehicle, armed, canEnter }) {
             <Btn id="nitro" label="Nitro" />
             <Btn id="brake" label="Frein" />
             <Btn id="horn" label="Klaxon" />
-            <Btn id="enter" label="Sortir" />
           </>
         )}
         {kind === 'heli' && (
           <>
+            <Btn id="fire" label="Tir" />
             <Btn id="up" label="▲ Monter" />
             <Btn id="down" label="▼ Descendre" />
-            <Btn id="enter" label="Sortir" />
           </>
         )}
       </div>

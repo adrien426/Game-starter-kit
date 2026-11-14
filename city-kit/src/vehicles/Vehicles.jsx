@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { CuboidCollider, RigidBody, useBeforePhysicsStep, useRapier } from '@react-three/rapier';
 import { EcctrlVehicle, ThrustPropeller } from 'ecctrl/vehicle';
-import { ASSET, CONFIG, VEHICLE_SPAWNS, VEHICLE_TYPES } from '../config';
+import { ASSET, CONFIG, HELI_GUN, VEHICLE_SPAWNS, VEHICLE_TYPES } from '../config';
+import { computeAimPoint, fireBullet } from '../combat/combat';
 import { Animator, useCharacterModel } from '../player/character';
 import { LAYOUT } from '../world/cityLayout';
 import { input } from '../core/input';
@@ -456,6 +457,9 @@ function Helicopter({ id, type, def, position, rotation }) {
   const object = useRef(null);
   const { body, parts } = useVehicleParts(def);
   const rotor = useRef(0);
+  const gunCooldown = useRef(0);
+  const { camera } = useThree();
+  const { world, rapier } = useRapier();
   const modulesReady = useModulesReady();
   useRegister(id, type, def, handle, object);
   const droneConfig = useMemo(() => ({
@@ -464,6 +468,15 @@ function Helicopter({ id, type, def, position, rotation }) {
   }), [def]);
 
   useDriving(id, def, handle, object, (h, active, dt) => {
+    // ---- nose machine gun: hold fire, bullets go where the crosshair points
+    gunCooldown.current -= dt;
+    if (active && input.held('fire') && gunCooldown.current <= 0 && object.current) {
+      gunCooldown.current = 1 / HELI_GUN.fireRate;
+      const muzzle = object.current.localToWorld(v1.set(...HELI_GUN.muzzle));
+      const target = computeAimPoint(world, rapier, camera, h.body);
+      fireBullet(world, rapier, muzzle.clone(), target, HELI_GUN, h.body);
+      sfx.shot(true);
+    }
     const st = input.stick;
     if (active) {
       h.setMovement({

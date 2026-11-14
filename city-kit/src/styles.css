@@ -106,3 +106,6 @@ canvas { touch-action: none; display: block; }
 .ui .map-buttons button { width: 40px; height: 40px; padding: 0 !important; border-radius: 50%; font-size: 19px !important; line-height: 1; letter-spacing: 0; background: rgba(13,17,23,0.6); border: 2px solid rgba(255,255,255,0.7); display: flex; align-items: center; justify-content: center; }
 .ui .map-buttons button:disabled { opacity: 0.35; }
 .map-buttons.mb-touch button { width: 36px; height: 36px; font-size: 17px !important; }
+/* get in / out button: fixed spot above the action buttons */
+.touch-enter { position: absolute; right: 12px; bottom: 182px; pointer-events: auto; }
+.prompt.prompt-touch { bottom: auto; top: 26%; }
