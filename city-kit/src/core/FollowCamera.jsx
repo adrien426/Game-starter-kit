@@ -16,6 +16,9 @@ const pivot = new THREE.Vector3();
 const fwd = new THREE.Vector3();
 const lastFocus = new THREE.Vector3();
 let zoom = C.distance;
+const eye = new THREE.Vector3();
+const tmpHead = new THREE.Vector3();
+let eyeY = null;
 
 const angleLerp = (a, b, t) => {
   let d = ((b - a + Math.PI) % (Math.PI * 2)) - Math.PI;
@@ -42,7 +45,8 @@ export function FollowCamera({ renderHere }) {
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     const cam = runtime.camera;
-    const { vehicleId, aiming, phase } = useGame.getState();
+    const { vehicleId, aiming, phase, cameraMode, dead } = useGame.getState();
+    const firstPerson = cameraMode === 'first' && !dead && phase !== 'menu';
     const playing = phase === 'playing';
 
     // ---- rotation
@@ -67,7 +71,7 @@ export function FollowCamera({ renderHere }) {
       // auto align behind the vehicle when the player does not touch the mouse
       fwd.set(0, 0, 1).applyQuaternion(vehicle.object.getWorldQuaternion(new THREE.Quaternion()));
       const speed = vehicle.handle?.currLinVel?.length?.() ?? 0;
-      if (clock.elapsedTime - cam.lastInput > C.autoAlignDelay && speed > 2) {
+      if (clock.elapsedTime - cam.lastInput > (firstPerson ? 0.5 : C.autoAlignDelay) && speed > 2) {
         const heading = Math.atan2(fwd.x, fwd.z);
         cam.yaw = angleLerp(cam.yaw, heading, 1 - Math.exp(-2.5 * dt));
         cam.pitch = THREE.MathUtils.lerp(cam.pitch, vehicle.def.kind === 'heli' ? -0.3 : -0.16, 1 - Math.exp(-1.5 * dt));
@@ -103,12 +107,38 @@ export function FollowCamera({ renderHere }) {
     const hit = world.castRay(ray, len, true, flags);
     if (hit) desired.copy(pivot).addScaledVector(dir, Math.max(0.3, hit.timeOfImpact - 0.25));
 
+    // ---- first person: the eye replaces the orbit position
+    if (firstPerson) {
+      if (vehicle && runtime.driverHead) {
+        runtime.driverHead.getWorldPosition(eye);
+        eye.y += 0.06;
+        eye.addScaledVector(look, C.eyeForward);
+      } else if (!vehicle && runtime.playerObject) {
+        // body position (stable) + head height (smoothed): no head-bob sickness
+        runtime.playerObject.getWorldPosition(eye);
+        const headY = runtime.playerHead ? runtime.playerHead.getWorldPosition(tmpHead).y + 0.08 : eye.y + 0.62;
+        eyeY = eyeY === null ? headY : THREE.MathUtils.lerp(eyeY, headY, 1 - Math.exp(-10 * dt));
+        eye.y = eyeY;
+        eye.x += Math.sin(cam.yaw) * C.eyeForward;
+        eye.z += Math.cos(cam.yaw) * C.eyeForward;
+      } else if (vehicle?.object) {
+        eye.copy(runtime.focus);
+      }
+      desired.copy(eye);
+    }
+
     camera.position.copy(desired);
     camera.lookAt(desired.x + look.x, desired.y + look.y, desired.z + look.z);
-    const fov = THREE.MathUtils.lerp(C.fov, C.aimFov, cam.aimBlend);
+    const fov = THREE.MathUtils.lerp(firstPerson ? C.fpFov : C.fov, C.aimFov, cam.aimBlend);
     if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
 
     runtime.aimDir.copy(look);
+    const vm = runtime.viewModel;
+    if (vm && firstPerson && !vehicle) {
+      vm.position.set(0.17, -0.17, -0.42).applyQuaternion(camera.quaternion).add(camera.position);
+      vm.quaternion.copy(camera.quaternion);
+      vm.rotateY(Math.PI); // gun models point to +Z, the camera looks to -Z
+    }
     if (renderHere) gl.render(scene, camera);
   }, 1);
 

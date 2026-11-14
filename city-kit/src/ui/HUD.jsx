@@ -72,7 +72,8 @@ function Controls() {
       <dt>Clic gauche</dt><dd>Tirer / frapper (3 clics = enchaînement)</dd>
       <dt>Clic droit</dt><dd>Viser (arme) / se mettre en garde (poings)</dd>
       <dt>C</dt><dd>Coup de pied</dd>
-      <dt>V</dt><dd>Roulade / esquive</dd>
+      <dt>V</dt><dd>Vue 1re personne / 3e personne</dd>
+      <dt>Ctrl / Alt</dt><dd>Roulade / esquive</dd>
       <dt>B</dt><dd>Emote (salut, provoc, danse)</dd>
       <dt>Tab / 1 2 3 / X</dt><dd>Roue des armes / changer d'arme</dd>
       <dt>T</dt><dd>Téléphone (faire venir un véhicule, jour/nuit…)</dd>
@@ -121,7 +122,8 @@ function InGame() {
         {weapon.id !== 'fists' && <div className="ammo">{ammo.mag} <span>/ {ammo.reserve}</span></div>}
         <div className="kills">K.O. : {g.kills}</div>
       </div>
-      {!vehicle && weapon.id !== 'fists' && <div className={`crosshair ${g.aiming ? 'aim' : ''}`} />}
+      {!vehicle && (weapon.id !== 'fists' || g.cameraMode === 'first') && <div className={`crosshair ${g.aiming ? 'aim' : ''} ${weapon.id === 'fists' ? 'dot' : ''}`} />}
+      <button className={`cam-btn ${isTouchDevice() ? 'cam-touch' : ''}`} title="Caméra (V)" onClick={() => g.toggleCamera()}>{g.cameraMode === 'first' ? '👁 1re' : '🎥 3e'}</button>
       {vehicle && (
         <div className={`speedo ${isTouchDevice() ? "speedo-touch" : ""}`}>
           <span className="n">{g.speedKmh}</span> km/h
@@ -135,7 +137,7 @@ function InGame() {
       <Minimap />
       <button className="pause-btn" onClick={() => { document.exitPointerLock?.(); g.setPhase('paused'); }}>II</button>
       {isTouchDevice() && <TouchControls vehicle={vehicle} armed={weapon.id !== 'fists'} canEnter={!!g.prompt} />}
-      {!isTouchDevice() && !vehicle && <div className="hint-keys">Tab : armes · T : téléphone</div>}
+      {!isTouchDevice() && !vehicle && <div className="hint-keys">Tab : armes · T : téléphone · V : caméra</div>}
       {g.wheelOpen && <WeaponWheel />}
       {g.phoneOpen && <Phone />}
     </>

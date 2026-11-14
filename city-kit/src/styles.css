@@ -75,7 +75,7 @@ canvas { touch-action: none; display: block; }
 /* ---------- nitro, weapon wheel, phone, touch layout ---------- */
 .bar.nitro { width: 160px; height: 8px; margin-left: auto; margin-top: 4px; }
 .bar.nitro .fill { background: linear-gradient(90deg, #4cc9f0, #b5f2ff); }
-.hint-keys { position: absolute; left: 210px; bottom: 20px; font-size: 16px; opacity: 0.6; text-shadow: 0 1px 0 #000; }
+.hint-keys { position: absolute; left: 300px; bottom: 22px; font-size: 16px; opacity: 0.6; text-shadow: 0 1px 0 #000; }
 .overlay { position: absolute; inset: 0; pointer-events: auto; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; }
 .wheel { position: relative; width: min(80vw, 420px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, rgba(13,17,23,0.55) 30%, rgba(13,17,23,0.85) 31%); border: 3px solid rgba(255,255,255,0.4); }
 .wheel .slot { position: absolute; transform: translate(-50%, -50%); width: 120px; padding: 8px 4px !important; font-size: 18px !important; display: flex; flex-direction: column; align-items: center; background: rgba(0,0,0,0.5) !important; }
@@ -94,3 +94,8 @@ canvas { touch-action: none; display: block; }
 .touch-top { top: auto; bottom: 176px; }
 .speedo.speedo-touch { right: auto; left: 50%; transform: translateX(-50%); bottom: auto; top: 54px; text-align: center; }
 .speedo.speedo-touch .bar.nitro { margin: 4px auto 0; }
+/* camera button next to the minimap */
+.cam-btn { position: absolute; left: 204px; bottom: 16px; padding: 6px 12px !important; font-size: 16px !important; background: rgba(0,0,0,0.45) !important; }
+.cam-btn.cam-touch { left: auto; bottom: auto; right: 140px; top: 110px; }
+.crosshair.dot { width: 8px; height: 8px; margin: -4px 0 0 -4px; border-width: 0; }
+.crosshair.dot::after { width: 6px; height: 6px; margin: -3px 0 0 -3px; }

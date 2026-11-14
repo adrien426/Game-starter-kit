@@ -71,6 +71,11 @@ function PlayerBody({ modelUrl }) {
 
   // Register the player in the shared runtime + as a damage target
   useEffect(() => {
+    runtime.playerHead = bones.Head ?? null;
+    return () => { runtime.playerHead = null; };
+  }, [bones]);
+
+  useEffect(() => {
     let colliderHandle = null;
     const id = setInterval(() => {
       if (!handle.current?.collider) return;
@@ -119,8 +124,11 @@ function PlayerBody({ modelUrl }) {
     });
 
     // ---------- aiming: the character faces the camera direction ----------
+    const firstPerson = game.cameraMode === 'first' && !game.dead;
+    model.visible = !firstPerson;
     const aimHeld = playing && armed && input.held('aim');
-    const faceCamera = playing && armed && (aimHeld || input.held('fire'));
+    // first person: the body always faces where you look (FPS controls)
+    const faceCamera = playing && (firstPerson || (armed && (aimHeld || input.held('fire'))));
     if (aimHeld !== game.aiming) useGame.setState({ aiming: aimHeld });
     h.setLockForward(faceCamera);
     flatDir.set(runtime.aimDir.x, 0, runtime.aimDir.z).normalize();
@@ -292,7 +300,10 @@ function PlayerBody({ modelUrl }) {
     // ---------- gun in the hand ----------
     const slot = gunSlot.current;
     for (const [id, g] of Object.entries(guns)) g.visible = id === weapon.id && !game.dead;
-    if (slot && bones.RightHand) {
+    // first person: FollowCamera places the gun in front of the eye (after the
+    // camera moved this frame, so it never lags behind)
+    runtime.viewModel = firstPerson ? slot : null;
+    if (slot && !firstPerson && bones.RightHand) {
       bones.RightHand.getWorldPosition(slot.position);
       const handDir = v2.subVectors(slot.position, bones.RightForeArm.getWorldPosition(v3)).normalize();
       const aimDir = v3.subVectors(runtime.aimPoint, slot.position).normalize();

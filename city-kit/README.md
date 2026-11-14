@@ -39,7 +39,8 @@ Réglage à faire une fois : **Settings → Pages → Source : GitHub Actions**.
 | Clic gauche | frapper (poings) / tirer |
 | Clic droit | viser (caméra par-dessus l'épaule) |
 | C | coup de pied |
-| V | roulade (en courant) / esquive |
+| V | vue 1re personne (par défaut) / 3e personne — aussi le bouton caméra à côté de la carte |
+| Ctrl / Alt | roulade (en courant) / esquive |
 | B | emote : salut, provocation, danse, victoire |
 | 1 2 3, X | changer d'arme |
 | R | recharger |

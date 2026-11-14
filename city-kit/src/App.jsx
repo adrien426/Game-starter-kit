@@ -37,6 +37,7 @@ function GlobalKeys() {
       if ((e.code === 'KeyP') && g.phase === 'playing') { document.exitPointerLock?.(); g.setPhase('paused'); }
       if (g.phase === 'playing' && !e.repeat && (e.code === 'Tab' || e.code === 'KeyQ') && g.vehicleId === null) { e.preventDefault(); toggleOverlay('wheelOpen'); }
       if (g.phase === 'playing' && !e.repeat && e.code === 'KeyT') toggleOverlay('phoneOpen');
+      if (g.phase === 'playing' && !e.repeat && e.code === 'KeyV') g.toggleCamera();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

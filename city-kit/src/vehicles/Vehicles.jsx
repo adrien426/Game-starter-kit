@@ -92,15 +92,34 @@ function useModulesReady() {
 function Driver({ id, def }) {
   const driven = useGame((s) => s.vehicleId === id);
   if (!driven || !def.seat) return null;
-  return <SeatedCharacter seat={def.seat} />;
+  return <SeatedCharacter seat={def.seat} roof={def.roof} />;
 }
-function SeatedCharacter({ seat }) {
+const _head = new THREE.Vector3();
+function SeatedCharacter({ seat, roof }) {
   const url = useGame((s) => s.playerModel);
-  const { model, mixer, actions } = useCharacterModel(url);
+  const firstPerson = useGame((s) => s.cameraMode === 'first');
+  const { model, mixer, actions, bones } = useCharacterModel(url);
   const animator = useMemo(() => new Animator(actions), [actions]);
+  const fitted = useRef(false);
   useEffect(() => { animator.play('SeatedIdle', { fade: 0 }); }, [animator]);
-  useFrame((_, dt) => mixer.update(Math.min(dt, 0.05)));
-  return <primitive object={model} position={seat} />;
+  useEffect(() => {
+    runtime.driverHead = bones.Head ?? null;
+    return () => { runtime.driverHead = null; };
+  }, [bones]);
+  useFrame((_, dt) => {
+    mixer.update(Math.min(dt, 0.05));
+    // First frame: lower the driver so the top of his head stays under the roof
+    // (characters have different heights, seats are guessed).
+    if (!fitted.current && roof && bones.Head && model.parent) {
+      fitted.current = true;
+      model.updateMatrixWorld(true);
+      model.parent.worldToLocal(bones.Head.getWorldPosition(_head));
+      const headTop = _head.y + 0.14;
+      if (headTop > roof - 0.06) model.position.y -= headTop - (roof - 0.06);
+    }
+  });
+  // first person: the body is hidden, the camera sits in its head
+  return <primitive object={model} position={seat} visible={!firstPerson} />;
 }
 
 // Vehicle glb materials are named PAINT / GLASS / HEAD / TAIL (GTA5 project):

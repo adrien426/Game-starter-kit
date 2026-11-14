@@ -9,6 +9,8 @@ export const useGame = create((set, get) => ({
   // What the player controls: null = on foot, otherwise a vehicle id
   vehicleId: null,
   playerModel: CONFIG.player.model,
+  cameraMode: CONFIG.camera.firstPersonDefault ? 'first' : 'third',
+  toggleCamera: () => set({ cameraMode: get().cameraMode === 'first' ? 'third' : 'first' }),
   exitPosition: null, // where to respawn the character when leaving a vehicle
   health: CONFIG.player.maxHealth,
   dead: false,

@@ -52,6 +52,9 @@ export const CONFIG = {
     shoulder: 0.55, // horizontal offset while aiming
     aimDistance: 2.4,
     fov: 62,
+    firstPersonDefault: true, // the 'camera' button / V key switches to third person
+    eyeForward: 0.12, // first person: eye a bit in front of the head bone
+    fpFov: 75,
     aimFov: 48,
     mouseSensitivity: 0.0024,
     touchSensitivity: 0.006,
@@ -109,18 +112,21 @@ export const VEHICLE_TYPES = {
     size: [1.7, 1.3, 3.6], wheelRadius: 0.297, wheelX: 0.69, wheelZ: 1.19, wheelY: 0.297,
     horsepower: 9, gearRatio: 5.2, topSpeedKmh: 120,
     seat: [0.33, 0.12, -0.05], // where the seated driver's feet origin goes (model space)
+    roof: 1.49, // inside height of the roof: the driver's head is lowered under it
   },
   nsx: {
     kind: 'car', name: 'Sportive', model: 'models/vehicles/nsx.glb',
     size: [1.95, 1.07, 4.45], wheelRadius: 0.329, wheelX: 0.8, wheelZ: 1.32, wheelY: 0.329,
     horsepower: 16, gearRatio: 3.8, topSpeedKmh: 190,
     seat: [-0.38, 0.0, -0.25],
+    roof: 1.13,
   },
   volvo: {
     kind: 'car', name: 'Police', model: 'models/vehicles/volvo.glb', police: true,
     size: [1.8, 1.45, 4.5], wheelRadius: 0.353, wheelX: 0.85, wheelZ: 1.46, wheelY: 0.36,
     horsepower: 12, gearRatio: 4.4, topSpeedKmh: 160,
     seat: [0.42, 0.18, -0.1],
+    roof: 1.6,
   },
   h2r: {
     kind: 'bike', name: 'Superbike', model: 'models/vehicles/h2r.glb',
@@ -132,6 +138,7 @@ export const VEHICLE_TYPES = {
     kind: 'heli', name: 'Hélicoptère', model: 'models/vehicles/heli.glb',
     size: [3.0, 3.2, 10.0], maxHorizSpeed: 32, maxVertSpeed: 9,
     seat: [0.45, 1.05, 2.1],
+    roof: 3.15,
   },
 };
 
